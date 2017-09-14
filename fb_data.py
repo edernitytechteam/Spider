@@ -1,4 +1,5 @@
-import datetime
+from datetime import datetime
+from dateutil import parser
 import json
 import urllib.request
 
@@ -23,6 +24,7 @@ def main():
     p_data['type'] = p_type
     p_insights = get_post_insights(USER_ACCESS_TOKEN, POST_ID, BASE_URL, p_type)
     f_data = dict(p_data.items() | p_insights.items() | ad_data.items())
+    f_data = json.loads(json.dumps(f_data))
     print(f_data)
     
 
@@ -63,10 +65,12 @@ def get_post_data(token, post_id, base):
     link = data["permalink_url"]
     p_from = data["from"]["name"]
     is_insta = data["is_instagram_eligible"]
-    p_create = data["created_time"]
+    p_create_time = str(parser.parse(data["created_time"]).time())
+    p_create_date = str(parser.parse(data["created_time"]).date())
     p_id = data["id"]
     data = {'likes' : likes, 'comments' : comments, 'shares' : shares, 'link' : link, 
-            'post_from' : p_from, 'post_created_time' : p_create, 'post_id' : p_id}
+            'post_from' : p_from, 'post_created_time' : p_create_time,'post_created_date' : p_create_date, 'post_id' : p_id,
+            'is_insta' : is_insta}
     return data
 def get_post_insights(token, post_id, base, p_type):
     if p_type=="video":
@@ -97,7 +101,7 @@ def get_post_insights(token, post_id, base, p_type):
         return val
 
 def get_post_ad_data(token, ad_id, base):
-    id_uri = "/insights?metric=impressions,spend&breakdowns=gender&access_token="
+    id_uri = "/insights?metric=impressions,spend,start_time,stop_time&breakdowns=gender&access_token="
     loc_uri = "/insights?metric=impressions,spend&breakdowns=region&access_token="
     target_uri = "?fields=targetingsentencelines&access_token="
     url = base + ad_id + id_uri + token
@@ -111,8 +115,7 @@ def get_post_ad_data(token, ad_id, base):
         if (ad_impression <= int(data["data"][a]["impressions"])):
             ad_impression = int(data["data"][0]["impressions"])
             top_audience = data["data"][a]["gender"]
-            ad_date_start = data["data"][a]["date_start"]
-            ad_date_stop = data["data"][a]["date_stop"]
+    adset_id = data["data"][0]["adset_id"]
     ad_impression = 0
     spend = 0
     for a in range(3):
@@ -123,10 +126,21 @@ def get_post_ad_data(token, ad_id, base):
         if (impre <= int(a["impressions"])):
             impre = int(a["impressions"])
             top_loaction = a["region"]
+    time_uri = "?fields=start_time,end_time&access_token="
+    time_url = base + adset_id + time_uri + token
+    time_data = to_json(time_url)
+    ad_start = parser.parse(time_data["start_time"])
+    ad_end = parser.parse(time_data["end_time"])
+    ad_start_date = str(ad_start.date())
+    ad_start_time = str(ad_start.time())
+    ad_end_date = str(ad_end.date())
+    ad_end_time = str(ad_end.time())
+    ad_run_time = str(ad_end - ad_start)
     ad_target_location = tar_data["targetingsentencelines"]["targetingsentencelines"][0]["children"][0]
     ad_target_age = tar_data["targetingsentencelines"]["targetingsentencelines"][1]["children"][0]
     data = {'top_location' : top_loaction,'top_audience' : top_audience, 'ad_impressions' : ad_impression, 'spend' : spend,
-             'ad_target_location' : ad_target_location, 'ad_target_age' : ad_target_age, 'ad_date_start' : ad_date_start, 'ad_date_stop' : ad_date_stop}
+             'ad_target_location' : ad_target_location, 'ad_target_age' : ad_target_age, 'ad_start_date' : ad_start_date,
+             'ad_start_time' : ad_start_time, 'ad_end_date' : ad_end_date, 'ad_end_time' : ad_end_time, 'ad_run_time' : ad_run_time}
     return data
 
 
@@ -137,6 +151,6 @@ def to_json(url):
         data = json.loads(data)
         return data
     except:
-        print("error with %s \n", url)
+        print("Error getting object with URL : ",  url)
 
 main()
